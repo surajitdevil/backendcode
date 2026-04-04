@@ -1,4 +1,4 @@
-    const express = require("express");
+const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -48,8 +48,9 @@ async function clearMessages(userId) {
 
 async function callLLM({ message, history = [] }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/
-const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+  const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+
   if (!apiKey) {
     return "OpenRouter key is missing. Add OPENROUTER_API_KEY in Railway variables.";
   }
@@ -71,33 +72,6 @@ const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
   ];
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model,
-    messages,
-    temperature: 0.7,
-  }),
-});
-
-const data = await response.json();
-
-if (!response.ok) {
-  console.log("OPENROUTER ERROR:", data);
-  throw new Error(JSON.stringify(data));
-}
-
-return data?.choices?.[0]?.message?.content || "No response returned.";
-
-const data = await response.json();
-
-if (!response.ok) {
-  console.log("OPENROUTER ERROR:", data);
-  throw new Error(JSON.stringify(data));
-}
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -113,7 +87,8 @@ if (!response.ok) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || "OpenRouter request failed");
+    console.log("OPENROUTER ERROR:", data);
+    throw new Error(JSON.stringify(data));
   }
 
   return data?.choices?.[0]?.message?.content || "No response returned.";
