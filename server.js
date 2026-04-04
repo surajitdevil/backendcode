@@ -48,9 +48,8 @@ async function clearMessages(userId) {
 
 async function callLLM({ message, history = [] }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
-  const model = process.env.OPENROUTER_MODEL || "gpt-4o-mini";
-
+  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/
+const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
   if (!apiKey) {
     return "OpenRouter key is missing. Add OPENROUTER_API_KEY in Railway variables.";
   }
@@ -83,6 +82,15 @@ async function callLLM({ message, history = [] }) {
     temperature: 0.7,
   }),
 });
+
+const data = await response.json();
+
+if (!response.ok) {
+  console.log("OPENROUTER ERROR:", data);
+  throw new Error(JSON.stringify(data));
+}
+
+return data?.choices?.[0]?.message?.content || "No response returned.";
 
 const data = await response.json();
 
