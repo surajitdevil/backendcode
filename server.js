@@ -72,6 +72,24 @@ async function callLLM({ message, history = [] }) {
   ];
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model,
+    messages,
+    temperature: 0.7,
+  }),
+});
+
+const data = await response.json();
+
+if (!response.ok) {
+  console.log("OPENROUTER ERROR:", data);
+  throw new Error(JSON.stringify(data));
+}
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
