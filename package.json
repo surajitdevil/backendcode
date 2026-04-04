@@ -1,17 +1,17 @@
 {
   "name": "orchegentra-backend",
-  "version": "3.0.0",
-  "description": "Single-file Railway backend with EVA routes",
+  "version": "4.0.0",
+  "description": "Single-file Railway backend with EVA routes and Supabase memory",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
-    "helmet": "^8.0.0",
-    
+    "helmet": "^8.0.0"
   }
 }
