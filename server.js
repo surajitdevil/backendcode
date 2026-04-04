@@ -1,34 +1,49 @@
-const express = require("express");
+    const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-
+const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
 const app = express();
 
-const memory = [];
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-function addMessage(userId, role, content, channel = "text") {
-  memory.push({
-    userId: userId || "anonymous",
-    role,
-    content,
-    channel,
-    createdAt: new Date().toISOString(),
-  });
-  if (memory.length > 500) memory.shift();
+async function addMessage(userId, role, content, channel = "text") {
+  const { error } = await supabase.from("eva_memory").insert([
+    {
+      user_id: userId || "anonymous",
+      role,
+      content,
+      channel,
+    },
+  ]);
+
+  if (error) throw error;
 }
 
-function getMessages(userId) {
-  return memory.filter((m) => m.userId === (userId || "anonymous")).slice(-20);
+async function getMessages(userId) {
+  const { data, error } = await supabase
+    .from("eva_memory")
+    .select("*")
+    .eq("user_id", userId || "anonymous")
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error) throw error;
+  return data || [];
 }
 
-function clearMessages(userId) {
-  const target = userId || "anonymous";
-  for (let i = memory.length - 1; i >= 0; i -= 1) {
-    if (memory[i].userId === target) memory.splice(i, 1);
-  }
+async function clearMessages(userId) {
+  const { error } = await supabase
+    .from("eva_memory")
+    .delete()
+    .eq("user_id", userId || "anonymous");
+
+  if (error) throw error;
 }
 
 async function callLLM({ message, history = [] }) {
@@ -145,12 +160,12 @@ app.post("/api/eva/chat", async (req, res) => {
       return res.status(400).json({ ok: false, error: "message is required" });
     }
 
-    const history = getMessages(userId);
-    addMessage(userId, "user", message, channel);
+    const history = await getMessages(userId);
+    await addMessage(userId, "user", message, channel);
 
     const reply = await callLLM({ message, history });
 
-    addMessage(userId, "assistant", reply, channel);
+    await addMessage(userId, "assistant", reply, channel);
 
     return res.json({
       ok: true,
@@ -158,7 +173,7 @@ app.post("/api/eva/chat", async (req, res) => {
       meta: {
         userId,
         channel,
-        memoryCount: getMessages(userId).length,
+        memoryCount: history.length + 2,
       },
     });
   } catch (error) {
@@ -170,21 +185,38 @@ app.post("/api/eva/chat", async (req, res) => {
   }
 });
 
-app.get("/api/eva/history", (req, res) => {
-  const userId = req.query.userId || "anonymous";
-  return res.json({
-    ok: true,
-    items: getMessages(userId),
-  });
+app.get("/api/eva/history", async (req, res) => {
+  try {
+    const userId = req.query.userId || "anonymous";
+    const items = await getMessages(userId);
+    return res.json({
+      ok: true,
+      items,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "History failed",
+    });
+  }
 });
 
-app.post("/api/eva/clear-memory", (req, res) => {
-  const { userId = "anonymous" } = req.body || {};
-  clearMessages(userId);
-  return res.json({
-    ok: true,
-    message: "Memory cleared",
-  });
+app.post("/api/eva/clear-memory", async (req, res) => {
+  try {
+    const { userId = "anonymous" } = req.body || {};
+    await clearMessages(userId);
+    return res.json({
+      ok: true,
+      message: "Memory cleared",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "Clear memory failed",
+    });
+  }
 });
 
 app.get("/api/voice/status", (_req, res) => {
