@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const fetch = require("node-fetch");
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
