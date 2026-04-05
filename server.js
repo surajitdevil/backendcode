@@ -56,11 +56,20 @@ app.post("/api/tasks/create", async (req, res) => {
   try {
     const { title, description } = req.body;
 
+    const userId = "anonymous"; // 👈 ADD THIS
+
     const { data, error } = await supabase
       .from("tasks")
-      .insert([{ title, description, status: "created" }])
+      .insert([
+        {
+          user_id: userId,
+          title,
+          description,
+          status: "pending"
+        }
+      ])
       .select()
-      .single();
+      .single();   
 
     if (error) throw error;
 
