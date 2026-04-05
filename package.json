@@ -1,7 +1,7 @@
 {
   "name": "orchegentra-backend",
-  "version": "4.0.0",
-  "description": "Single-file Railway backend",
+  "version": "5.0.0",
+  "description": "Single-file Railway backend with EVA, audit logging, auth routes and enterprise diagnostics",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
