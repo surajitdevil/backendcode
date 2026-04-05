@@ -94,27 +94,37 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
 
 const flow = ["chairman", "cto", "analyst", "builder", "security", "eva"];
 
-for (const agent of flow) {
-  const systemPrompt = AGENTS[agent];
 
-  const output = await callLLM(context, systemPrompt);
+const results = await Promise.all(
+  flow.map(async (agent) => {
+    const systemPrompt = AGENTS[agent];
 
-  await supabase.from("agent_runs").insert([
-    {
-      task_id: id,
-      agent_id: agent,
-      output_text: output
-    }
-  ]);
+    const output = await callLLM(context, systemPrompt);
 
-  context = context + "\n\n" + output;
-}
+    await supabase.from("agent_runs").insert([
+      {
+        task_id: id,
+        agent_id: agent,
+        output_text: output
+      }
+    ]);
+
+    return { agent, output };
+  })
+);
+
+let finalOutput = "";
+
+results.forEach(r => {
+  finalOutput += `\n\n[${r.agent.toUpperCase()}]\n${r.output}`;
+});
+
 
 await supabase
   .from("tasks")
   .update({
     status: "completed",
-    final_output: context,
+    final_output: finalOutput,
     primary_agent: "multi-agent"
   })
   .eq("id", id);
@@ -122,8 +132,8 @@ await supabase
 res.json({
   ok: true,
   mode: "multi-agent",
-  result: context
-});   
+  result: finalOutput,
+});
 
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
