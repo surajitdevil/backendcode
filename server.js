@@ -8,10 +8,14 @@ require("dotenv").config();
 
 const app = express();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
+const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function addMessage(userId, role, content, channel = "text") {
   const { error } = await supabase.from("eva_memory").insert([
@@ -23,7 +27,9 @@ async function addMessage(userId, role, content, channel = "text") {
     },
   ]);
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(`Supabase addMessage error: ${error.message}`);
+  }
 }
 
 async function getMessages(userId) {
@@ -34,7 +40,10 @@ async function getMessages(userId) {
     .order("created_at", { ascending: true })
     .limit(20);
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(`Supabase getMessages error: ${error.message}`);
+  }
+
   return data || [];
 }
 
@@ -44,16 +53,20 @@ async function clearMessages(userId) {
     .delete()
     .eq("user_id", userId || "anonymous");
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(`Supabase clearMessages error: ${error.message}`);
+  }
 }
 
 async function callLLM({ message, history = [] }) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
-  const model = process.env.OPENROUTER_MODEL || "gpt-4o-mini";
+  const apiKey = (process.env.OPENROUTER_API_KEY || "").trim();
+  const baseUrl = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1")
+    .trim()
+    .replace(/\/$/, "");
+  const model = (process.env.OPENROUTER_MODEL || "gpt-4o-mini").trim();
 
   if (!apiKey) {
-    return "OpenRouter key is missing. Add OPENROUTER_API_KEY in Railway variables.";
+    throw new Error("OPENROUTER_API_KEY is missing in Railway variables.");
   }
 
   const messages = [
@@ -77,6 +90,8 @@ async function callLLM({ message, history = [] }) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "HTTP-Referer": "https://orchegentra.ai",
+      "X-Title": "Orchegentra EVA",
     },
     body: JSON.stringify({
       model,
@@ -88,8 +103,8 @@ async function callLLM({ message, history = [] }) {
   const data = await response.json();
 
   if (!response.ok) {
-    console.log("OPENROUTER ERROR:", data);
-    throw new Error(JSON.stringify(data));
+    console.error("OPENROUTER ERROR:", JSON.stringify(data));
+    throw new Error(`OpenRouter error ${response.status}: ${JSON.stringify(data)}`);
   }
 
   return data?.choices?.[0]?.message?.content || "No response returned.";
@@ -125,6 +140,22 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     status: "healthy",
     timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/debug", (_req, res) => {
+  res.json({
+    ok: true,
+    env: {
+      SUPABASE_URL: SUPABASE_URL ? `${SUPABASE_URL.slice(0, 20)}...` : "MISSING",
+      SUPABASE_SERVICE_ROLE_KEY: SUPABASE_KEY ? "SET" : "MISSING",
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? "SET" : "MISSING",
+      OPENROUTER_BASE_URL:
+        (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1")
+          .trim()
+          .replace(/\/$/, ""),
+      OPENROUTER_MODEL: (process.env.OPENROUTER_MODEL || "gpt-4o-mini").trim(),
+    },
   });
 });
 
@@ -179,7 +210,7 @@ app.post("/api/eva/chat", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("/api/eva/chat error:", error.message);
     return res.status(500).json({
       ok: false,
       error: error.message || "EVA failed",
@@ -191,12 +222,13 @@ app.get("/api/eva/history", async (req, res) => {
   try {
     const userId = req.query.userId || "anonymous";
     const items = await getMessages(userId);
+
     return res.json({
       ok: true,
       items,
     });
   } catch (error) {
-    console.error(error);
+    console.error("/api/eva/history error:", error.message);
     return res.status(500).json({
       ok: false,
       error: error.message || "History failed",
@@ -208,12 +240,13 @@ app.post("/api/eva/clear-memory", async (req, res) => {
   try {
     const { userId = "anonymous" } = req.body || {};
     await clearMessages(userId);
+
     return res.json({
       ok: true,
       message: "Memory cleared",
     });
   } catch (error) {
-    console.error(error);
+    console.error("/api/eva/clear-memory error:", error.message);
     return res.status(500).json({
       ok: false,
       error: error.message || "Clear memory failed",
@@ -230,7 +263,7 @@ app.get("/api/voice/status", (_req, res) => {
 });
 
 app.use((err, _req, res, _next) => {
-  console.error(err);
+  console.error("Unhandled error:", err);
   res.status(500).json({
     ok: false,
     error: "internal_server_error",
@@ -239,5 +272,5 @@ app.use((err, _req, res, _next) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
