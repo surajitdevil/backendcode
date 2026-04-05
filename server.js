@@ -15,7 +15,11 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: {
+    fetch,
+  },
+});
 
 async function addMessage(userId, role, content, channel = "text") {
   const { error } = await supabase.from("eva_memory").insert([
@@ -63,7 +67,7 @@ async function callLLM({ message, history = [] }) {
   const baseUrl = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1")
     .trim()
     .replace(/\/$/, "");
-  const model = (process.env.OPENROUTER_MODEL || "gpt-4o-mini").trim();
+  const model = (process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini").trim();
 
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is missing in Railway variables.");
@@ -154,9 +158,33 @@ app.get("/api/debug", (_req, res) => {
         (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1")
           .trim()
           .replace(/\/$/, ""),
-      OPENROUTER_MODEL: (process.env.OPENROUTER_MODEL || "gpt-4o-mini").trim(),
+      OPENROUTER_MODEL: (process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini").trim(),
     },
   });
+});
+
+app.get("/api/supabase-test", async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("eva_memory")
+      .select("*")
+      .limit(1);
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      ok: true,
+      message: "Supabase connection works",
+      rows: data || [],
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "Supabase test failed",
+    });
+  }
 });
 
 app.get("/api/agents/list", (_req, res) => {
