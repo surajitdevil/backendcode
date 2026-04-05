@@ -90,29 +90,34 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
       .eq("id", id)
       .single();
 
-    let context = task.description;
+    
+let agent = "eva";
 
-    for (const agent in AGENTS) {
-      const output = await callLLM(context, AGENTS[agent]);
+if (task.title.toLowerCase().includes("architecture")) agent = "cto";
+else if (task.title.toLowerCase().includes("plan")) agent = "ops";
+else if (task.title.toLowerCase().includes("analysis")) agent = "analyst";
 
-      await supabase.from("agent_runs").insert([
-        {
-          task_id: id,
-          agent_id: agent,
-          output_text: output
-        }
-      ]);
+const systemPrompt = AGENTS[agent];
 
-      context += "\n" + output;
-    }
+const result = await callLLM(
+  task.description || task.title,
+  systemPrompt
+);
 
-    await supabase
-      .from("tasks")
-      .update({ status: "completed", final_output: context })
-      .eq("id", id);
+await supabase
+  .from("tasks")
+  .update({
+    status: "completed",
+    final_output: result,
+    primary_agent: agent
+  })
+  .eq("id", id);
 
-    res.json({ ok: true, result: context });
-
+res.json({
+  ok: true,
+  agent,
+  result
+});
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
