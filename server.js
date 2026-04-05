@@ -50,7 +50,7 @@ async function clearMessages(userId) {
 async function callLLM({ message, history = [] }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
-  const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+  const model = process.env.OPENROUTER_MODEL || "gpt-4o-mini";
 
   if (!apiKey) {
     return "OpenRouter key is missing. Add OPENROUTER_API_KEY in Railway variables.";
