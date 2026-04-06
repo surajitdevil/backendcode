@@ -28,7 +28,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !OPENROUTER_API_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
 const MODEL = "openai/gpt-4o-mini";
 
 async function callLLM(systemPrompt, userPrompt) {
@@ -57,14 +56,6 @@ async function callLLM(systemPrompt, userPrompt) {
   return data?.choices?.[0]?.message?.content || "";
 }
 
-function safeJsonParse(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
-}
-
 function buildDepartmentPrompt(roleName, roleInstruction, task, previousOutputs) {
   return `
 You are the ${roleName} inside ORCHEGENTRA AI, a premium enterprise AI company OS.
@@ -81,12 +72,11 @@ ${JSON.stringify(previousOutputs, null, 2)}
 
 Rules:
 1. Be specific to the user's exact task.
-2. Do not give generic business advice.
-3. Respond only with useful department output.
-4. Keep it practical, structured, and implementation-oriented.
-5. If the task is product-building, tailor your output to that product.
-6. Do not repeat previous departments unnecessarily.
-7. Output plain text only.
+2. Do not give generic advice.
+3. Build on previous agent outputs.
+4. Keep output practical, structured, and implementation-oriented.
+5. If task is about app, SaaS, AI tools, agentic systems, or automation, tailor deeply to that.
+6. Return plain text only.
 `.trim();
 }
 
@@ -96,8 +86,7 @@ const DEPARTMENTS = [
     label: "Chairman",
     instruction: `
 Act as strategic decision maker.
-Define mission, scope, objectives, product direction, and core vision.
-Break the task into high-level business goals and success criteria.
+Define mission, scope, objectives, product direction, and business success criteria.
 `
   },
   {
@@ -105,7 +94,7 @@ Break the task into high-level business goals and success criteria.
     label: "CTO",
     instruction: `
 Act as Chief Technology Officer.
-Design technical architecture, stack, system modules, backend/frontend structure, deployment and scalability plan.
+Design technical architecture, stack, system modules, backend/frontend structure, scalability, and deployment strategy.
 `
   },
   {
@@ -113,15 +102,15 @@ Design technical architecture, stack, system modules, backend/frontend structure
     label: "CMO",
     instruction: `
 Act as Chief Marketing Officer.
-Define market positioning, go-to-market strategy, customer persona, growth channels, pricing ideas, and branding direction.
+Define market positioning, ideal users, go-to-market strategy, customer acquisition direction, and product messaging.
 `
   },
   {
     key: "hr",
     label: "HR",
     instruction: `
-Act as HR and talent strategy lead.
-Define required roles, team structure, hiring plan, responsibilities, collaboration model, and execution ownership.
+Act as HR and people strategy lead.
+Define required roles, team structure, responsibilities, collaboration model, and hiring priorities.
 `
   },
   {
@@ -129,7 +118,7 @@ Define required roles, team structure, hiring plan, responsibilities, collaborat
     label: "Data Scientist",
     instruction: `
 Act as Data Scientist.
-Define business intelligence opportunities, predictive analytics opportunities, experimentation design, data insights, and measurable KPIs.
+Define KPIs, experiment ideas, intelligence opportunities, analytics questions, forecasting opportunities, and decision metrics.
 `
   },
   {
@@ -137,7 +126,7 @@ Define business intelligence opportunities, predictive analytics opportunities, 
     label: "Data Engineer",
     instruction: `
 Act as Data Engineer.
-Design data pipelines, schemas, ingestion strategy, storage, event tracking, analytics infrastructure, and data flow.
+Define schemas, pipelines, ingestion design, event tracking, analytics infrastructure, storage patterns, and data flow.
 `
   },
   {
@@ -145,8 +134,36 @@ Design data pipelines, schemas, ingestion strategy, storage, event tracking, ana
     label: "ML Engineer",
     instruction: `
 Act as ML Engineer.
-Define machine learning or AI architecture, model workflow, training/inference strategy, evaluation and deployment approach if relevant.
-If the task does not need ML, state the best AI automation approach instead.
+Define model workflow, AI architecture, inference/training approach, evaluation method, and AI integration pattern.
+If task does not need ML, define the best AI/LLM workflow instead.
+`
+  },
+  {
+    key: "builder",
+    label: "Full Stack Builder",
+    instruction: `
+Act as Full Stack Builder.
+Turn the plan into a build-ready product blueprint.
+Define frontend pages, components, backend APIs, database entities, module structure, folder organization, and implementation sequence.
+Focus on building apps, SaaS, AI tools, and agentic systems in production style.
+`
+  },
+  {
+    key: "automation",
+    label: "Automation Agent",
+    instruction: `
+Act as Automation Agent.
+Design workflow automation, triggers, webhooks, scheduled jobs, API integrations, notifications, handoffs, and operational automations.
+If the system can use tools like Make, Zapier, n8n, or internal automation pipelines, specify where and how.
+`
+  },
+  {
+    key: "qa",
+    label: "QA Agent",
+    instruction: `
+Act as QA Agent.
+Define test strategy, edge cases, functional validation, UI/UX checks, performance checks, failure scenarios, and release readiness checks.
+Identify likely bugs and what must be validated before production.
 `
   },
   {
@@ -154,7 +171,7 @@ If the task does not need ML, state the best AI automation approach instead.
     label: "Operations",
     instruction: `
 Act as Operations Head.
-Define execution workflow, milestones, delivery phases, SOPs, dependencies, operational processes, and rollout sequence.
+Define rollout phases, task sequencing, delivery plan, milestones, SOPs, dependencies, launch order, and operational control.
 `
   },
   {
@@ -162,7 +179,7 @@ Define execution workflow, milestones, delivery phases, SOPs, dependencies, oper
     label: "Security",
     instruction: `
 Act as Security Lead.
-Define security architecture, auth, secrets handling, API protection, logging, abuse protection, privacy, and compliance considerations.
+Define auth, permissions, secrets handling, API protection, abuse prevention, audit, privacy, file safety, and production security controls.
 `
   },
   {
@@ -171,7 +188,7 @@ Define security architecture, auth, secrets handling, API protection, logging, a
     instruction: `
 Act as Executive Integrator.
 Combine all department outputs into one clear final action plan.
-Summarize what should be built, in what sequence, and what the final recommended strategy is.
+Summarize exactly what should be built, in what order, and how it should be launched.
 `
   }
 ];
@@ -187,10 +204,7 @@ async function runDepartmentAgents(task) {
       outputs
     );
 
-    const userPrompt = `
-Generate the ${dept.label} output for this task.
-Be highly relevant to the specific task.
-`.trim();
+    const userPrompt = `Generate the ${dept.label} output for this task.`;
 
     const result = await callLLM(systemPrompt, userPrompt);
     outputs[dept.key] = result;
@@ -208,6 +222,9 @@ function formatLegacyOutput(structured) {
     "data_scientist",
     "data_engineer",
     "ml_engineer",
+    "builder",
+    "automation",
+    "qa",
     "operations",
     "security",
     "final_summary"
@@ -215,15 +232,12 @@ function formatLegacyOutput(structured) {
 
   return orderedKeys
     .map((key) => {
-      const title = key.replaceAll("_", " ").toUpperCase();
+      const title = key.replace(/_/g, " ").toUpperCase();
       return `[${title}]\n${structured[key] || ""}`;
     })
     .join("\n\n");
 }
 
-/**
- * HEALTH
- */
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
@@ -232,9 +246,6 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-/**
- * CREATE TASK
- */
 app.post("/api/tasks/create", async (req, res) => {
   try {
     const { title, description } = req.body || {};
@@ -276,9 +287,6 @@ app.post("/api/tasks/create", async (req, res) => {
   }
 });
 
-/**
- * LIST TASKS
- */
 app.get("/api/tasks", async (_req, res) => {
   try {
     const { data, error } = await supabase
@@ -300,9 +308,6 @@ app.get("/api/tasks", async (_req, res) => {
   }
 });
 
-/**
- * EXECUTE TASK
- */
 app.post("/api/tasks/:id/execute", async (req, res) => {
   try {
     const id = req.params.id;
@@ -322,9 +327,7 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
 
     await supabase
       .from("tasks")
-      .update({
-        status: "running"
-      })
+      .update({ status: "running" })
       .eq("id", id);
 
     const structuredOutput = await runDepartmentAgents(task);
@@ -367,9 +370,6 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
   }
 });
 
-/**
- * GET SINGLE TASK
- */
 app.get("/api/tasks/:id", async (req, res) => {
   try {
     const { data, error } = await supabase
