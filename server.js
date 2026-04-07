@@ -391,7 +391,35 @@ app.get("/api/tasks/:id", async (req, res) => {
     });
   }
 });
+// NEW: Direct execution API (no task ID required)
+app.post("/api/task/execute", async (req, res) => {
+  try {
+    const { title, description } = req.body || {};
 
+    if (!title || !description) {
+      return res.status(400).json({
+        ok: false,
+        error: "title_and_description_required"
+      });
+    }
+
+    // Run AI agents
+    const structuredOutput = await runDepartmentAgents({ title, description });
+    const finalOutput = formatLegacyOutput(structuredOutput);
+
+    res.json({
+      ok: true,
+      structured_output: structuredOutput,
+      final_output: finalOutput
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log(`ORCHEGENTRA backend running on port ${PORT}`);
 });
