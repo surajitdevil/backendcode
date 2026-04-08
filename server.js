@@ -413,7 +413,6 @@ app.post("/api/task/execute", async (req, res) => {
       });
     }
 
-    // Run AI agents
     const structuredOutput = await runDepartmentAgents({ title, description });
     const finalOutput = formatLegacyOutput(structuredOutput);
 
@@ -422,12 +421,6 @@ app.post("/api/task/execute", async (req, res) => {
       structured_output: structuredOutput,
       final_output: finalOutput
     });
-app.get("/api/debug-env", (_req, res) => {
-  res.json({
-    hasGeminiKey: !!process.env.GEMINI_API_KEY,
-    model: MODEL
-  });
-});
   } catch (err) {
     res.status(500).json({
       ok: false,
@@ -436,6 +429,12 @@ app.get("/api/debug-env", (_req, res) => {
   }
 });
 
+app.get("/api/debug-env", (_req, res) => {
+  res.json({
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    model: MODEL
+  });
+});
 app.listen(PORT, () => {
   console.log(`ORCHEGENTRA backend running on port ${PORT}`);
 });
