@@ -422,7 +422,12 @@ app.post("/api/task/execute", async (req, res) => {
       structured_output: structuredOutput,
       final_output: finalOutput
     });
-
+app.get("/api/debug-env", (_req, res) => {
+  res.json({
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
+    model: MODEL
+  });
+});
   } catch (err) {
     res.status(500).json({
       ok: false,
@@ -430,6 +435,7 @@ app.post("/api/task/execute", async (req, res) => {
     });
   }
 });
+
 app.listen(PORT, () => {
   console.log(`ORCHEGENTRA backend running on port ${PORT}`);
 });
