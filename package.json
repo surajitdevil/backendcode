@@ -1,18 +1,22 @@
 {
   "name": "orchegentra-backend",
-  "version": "6.0.0",
-  "description": "Orchegentra Phase B multi-agent backend foundation",
+  "version": "1.0.0",
   "main": "server.js",
+
+  "engines": {
+    "node": "18.x"
+  },
+
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.0",
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "express-rate-limit": "^7.5.0",
-    "helmet": "^8.0.0",
-    "node-fetch": "^2.6.7"
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^6.0.0",
+    "node-fetch": "^2.6.7",
+    "@supabase/supabase-js": "^2.0.0",
+    "dotenv": "^16.0.0"
   }
 }
