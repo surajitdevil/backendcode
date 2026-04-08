@@ -20,42 +20,52 @@ const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !OPENROUTER_API_KEY) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GEMINI_API_KEY) {
   console.error("Missing environment variables.");
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const MODEL = "openai/gpt-4o-mini";
+const MODEL = "gemini-1.5-flash";
 
 async function callLLM(systemPrompt, userPrompt) {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.4,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
-    })
-  });
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `${systemPrompt}\n\n${userPrompt}`
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (!response.ok) {
-    throw new Error(data?.error?.message || "LLM call failed");
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini failed");
+    }
+
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+  } catch (err) {
+    console.error("Gemini error:", err.message);
+    return `Fallback: ${userPrompt}`;
   }
-
-  return data?.choices?.[0]?.message?.content || "";
 }
-
 function buildDepartmentPrompt(roleName, roleInstruction, task, previousOutputs) {
   return `
 You are the ${roleName} inside ORCHEGENTRA AI, a premium enterprise AI company OS.
