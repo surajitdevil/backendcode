@@ -116,12 +116,21 @@ Define mission, scope, objectives, product direction, and business success crite
 `
   },
   {
-    key: "cto",
-    label: "CTO",
     instruction: `
 Act as Chief Technology Officer.
-Design technical architecture, stack, system modules, backend/frontend structure, scalability, and deployment strategy.
-`
+Define technical architecture, stack, backend/frontend structure, scalability, and deployment strategy.
+
+You must also decide which specialist agents are required for this task.
+
+At the end of your output, include a section exactly like this:
+
+Selected Agents:
+- builder
+- qa
+
+Only choose from:
+cmo, hr, data_scientist, data_engineer, ml_engineer, builder, automation, qa, operations, security
+`,
   },
   {
     key: "cmo",
@@ -218,29 +227,151 @@ Summarize exactly what should be built, in what order, and how it should be laun
 `
   }
 ];
-async function runDepartmentAgents(task) {
-  const outputs = {};
+function getAgentMap() {
+  return Object.fromEntries(DEPARTMENTS.map(agent => [agent.key, agent]));
+}
 
-  for (const dept of DEPARTMENTS) {
+function extractAgentsFromText(text) {
+  if (!text) return [];
+
+  const normalized = text.toLowerCase();
+
+  const agentKeywords = {
+    cmo: ["cmo", "marketing", "go-to-market", "growth", "branding"],
+    hr: ["hr", "hiring", "recruitment", "team structure", "people"],
+    data_scientist: ["data scientist", "analytics", "kpi", "forecast", "experiment"],
+    data_engineer: ["data engineer", "pipeline", "etl", "warehouse", "ingestion"],
+    ml_engineer: ["ml engineer", "machine learning", "model", "training", "inference", "ai model"],
+    builder: ["builder", "full stack", "frontend", "backend", "ui", "api", "database"],
+    automation: ["automation", "workflow", "zapier", "n8n", "make", "trigger", "webhook"],
+    qa: ["qa", "testing", "validation", "bug", "test cases"],
+    operations: ["operations", "launch", "rollout", "milestone", "delivery"],
+    security: ["security", "auth", "permission", "privacy", "compliance", "protection"]
+  };
+
+  const selected = [];
+
+  for (const [agentKey, keywords] of Object.entries(agentKeywords)) {
+    if (keywords.some(keyword => normalized.includes(keyword))) {
+      selected.push(agentKey);
+    }
+  }
+
+  return [...new Set(selected)];
+}
+
+function resolveSelectedAgents(ctoOutput, manualAgents = []) {
+  const ctoAgents = extractAgentsFromText(ctoOutput);
+  const merged = [...new Set([...(manualAgents || []), ...ctoAgents])];
+
+  if (merged.length === 0) {
+    return ["builder", "qa"];
+  }
+
+  return merged;
+}
+
+async function runDepartmentAgents(task, manualAgents = []) {
+  const outputs = {};
+  const agentMap = getAgentMap();
+
+  const chairman = agentMap["chairman"];
+  const cto = agentMap["cto"];
+  const finalSummary = agentMap["final_summary"];
+
+  // 1. Chairman
+  try {
+    const prompt = buildDepartmentPrompt(
+      chairman.label,
+      chairman.instruction,
+      task,
+      outputs
+    );
+
+    outputs[chairman.key] = await callLLM(
+      prompt,
+      "Define mission, scope, and objectives clearly."
+    );
+
+    console.log(`✅ Chairman done`);
+    await new Promise(r => setTimeout(r, 1200));
+  } catch (err) {
+    outputs[chairman.key] = `ERROR: ${err.message}`;
+  }
+
+  // 2. CTO
+  let selectedAgents = [];
+
+  try {
+    const prompt = buildDepartmentPrompt(
+      cto.label,
+      cto.instruction,
+      task,
+      outputs
+    );
+
+    outputs[cto.key] = await callLLM(
+      prompt,
+      "Design system and include 'Selected Agents:' section."
+    );
+
+    console.log(`✅ CTO done`);
+    await new Promise(r => setTimeout(r, 1200));
+
+    selectedAgents = resolveSelectedAgents(outputs[cto.key], manualAgents);
+  } catch (err) {
+    outputs[cto.key] = `ERROR: ${err.message}`;
+    selectedAgents = manualAgents.length ? manualAgents : ["builder", "qa"];
+  }
+
+  // 3. Selected agents
+  for (const key of selectedAgents) {
+    if (["chairman", "cto", "final_summary"].includes(key)) continue;
+
+    const dept = agentMap[key];
+    if (!dept) continue;
+
     try {
-      const systemPrompt = buildDepartmentPrompt(
+      const prompt = buildDepartmentPrompt(
         dept.label,
         dept.instruction,
         task,
         outputs
       );
 
-      const result = await callLLM(systemPrompt, "");
+      outputs[dept.key] = await callLLM(
+        prompt,
+        "Execute your role clearly."
+      );
 
-      outputs[dept.key] = result;
+      console.log(`✅ ${dept.label} done`);
+      await new Promise(r => setTimeout(r, 1200));
 
-      console.log(`✅ ${dept.label} completed`);
     } catch (err) {
-      console.error(`❌ ${dept.label} failed`, err.message);
-
       outputs[dept.key] = `ERROR: ${err.message}`;
     }
   }
+
+  // 4. Final summary
+  try {
+    const prompt = buildDepartmentPrompt(
+      finalSummary.label,
+      finalSummary.instruction,
+      task,
+      outputs
+    );
+
+    outputs[finalSummary.key] = await callLLM(
+      prompt,
+      "Combine all outputs into final plan."
+    );
+
+    console.log(`✅ Final Summary done`);
+  } catch (err) {
+    outputs[finalSummary.key] = `ERROR: ${err.message}`;
+  }
+
+  outputs.selected_agents = selectedAgents;
 
   return outputs;
 }
@@ -362,7 +493,10 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
       .update({ status: "running" })
       .eq("id", id);
 
-    const structuredOutput = await runDepartmentAgents(task);
+    const structuredOutput = await runDepartmentAgents(
+  task,
+  task.selected_agents || []
+);
     const finalOutput = formatLegacyOutput(structuredOutput);
 
     const { error: updateError } = await supabase
@@ -426,7 +560,7 @@ app.get("/api/tasks/:id", async (req, res) => {
 // NEW: Direct execution API (no task ID required)
 app.post("/api/task/execute", async (req, res) => {
   try {
-    const { title, description } = req.body || {};
+    const { title, description ,agents } = req.body || {};
 
     if (!title || !description) {
       return res.status(400).json({
@@ -435,7 +569,11 @@ app.post("/api/task/execute", async (req, res) => {
       });
     }
 
-    const structuredOutput = await runDepartmentAgents({ title, description });
+    
+    const structuredOutput = await runDepartmentAgents(
+  { title, description },
+  agents || []
+);
     const finalOutput = formatLegacyOutput(structuredOutput);
 
     res.json({
