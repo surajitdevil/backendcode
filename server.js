@@ -62,9 +62,9 @@ async function callLLM(systemPrompt, userPrompt) {
     return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   } catch (err) {
-    console.error("Gemini error:", err.message);
-    return `Fallback: ${userPrompt}`;
-  }
+  console.error("Gemini error:", err.message);
+  throw err;
+}
 }
 function buildDepartmentPrompt(roleName, roleInstruction, task, previousOutputs) {
   return `
@@ -428,13 +428,31 @@ app.post("/api/task/execute", async (req, res) => {
     });
   }
 });
+app.get("/api/test-gemini", async (_req, res) => {
+  try {
+    const output = await callLLM(
+      "You are a helpful AI assistant.",
+      "Reply with exactly: Gemini is working"
+    );
 
+    res.json({
+      ok: true,
+      output
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 app.get("/api/debug-env", (_req, res) => {
   res.json({
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
     model: MODEL
   });
 });
+
 app.listen(PORT, () => {
   console.log(`ORCHEGENTRA backend running on port ${PORT}`);
 });
