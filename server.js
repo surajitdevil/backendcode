@@ -28,7 +28,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GEMINI_API_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const MODEL = "gemini-1.5-flash";
+const MODEL = "gemini-2.5-flash";
 
 async function callLLM(systemPrompt, userPrompt) {
   try {
@@ -452,7 +452,17 @@ app.get("/api/debug-env", (_req, res) => {
     model: MODEL
   });
 });
-
+app.get("/api/list-models", async (_req, res) => {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`
+    );
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`ORCHEGENTRA backend running on port ${PORT}`);
 });
