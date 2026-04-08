@@ -376,24 +376,19 @@ async function runDepartmentAgents(task, manualAgents = []) {
   return outputs;
 }
 function formatLegacyOutput(structured) {
+  const selected = structured.selected_agents || [];
+
   const order = [
     "chairman",
     "cto",
-    "cmo",
-    "hr",
-    "data_scientist",
-    "data_engineer",
-    "ml_engineer",
-    "builder",
-    "automation",
-    "qa",
-    "operations",
-    "security",
+    ...selected,
     "final_summary"
   ];
 
-  return order
-    .map(key => {
+  const uniqueOrder = [...new Set(order)];
+
+  return uniqueOrder
+    .map((key) => {
       if (!structured[key]) return "";
       return `\n\n=== ${key.toUpperCase()} ===\n${structured[key]}`;
     })
@@ -411,7 +406,7 @@ app.get("/api/health", (_req, res) => {
 
 app.post("/api/tasks/create", async (req, res) => {
   try {
-    const { title, description } = req.body || {};
+    const { title, description, selected_agents = [] } = req.body || {};
 
     if (!title || !description) {
       return res.status(400).json({
@@ -424,14 +419,15 @@ app.post("/api/tasks/create", async (req, res) => {
       .from("tasks")
       .insert([{
         user_id: "anonymous",
-        user_email: null,
-        title,
-        description,
-        priority: "medium",
-        status: "pending",
-        primary_agent: null,
-        final_output: null,
-        structured_output: null
+user_email: null,
+title,
+description,
+priority: "medium",
+status: "pending",
+primary_agent: null,
+final_output: null,
+structured_output: null,
+selected_agents
       }])
       .select()
       .single();
@@ -503,9 +499,10 @@ app.post("/api/tasks/:id/execute", async (req, res) => {
       .from("tasks")
       .update({
         status: "completed",
-        primary_agent: "multi-agent-company-os",
-        final_output: finalOutput,
-        structured_output: structuredOutput
+primary_agent: "multi-agent-company-os",
+final_output: finalOutput,
+structured_output: structuredOutput,
+selected_agents: structuredOutput.selected_agents || []
       })
       .eq("id", id);
 
