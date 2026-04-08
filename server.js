@@ -28,7 +28,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GEMINI_API_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const MODEL = "gemini-1.5-flash-latest";
+const MODEL = "gemini-1.5-flash";
 
 async function callLLM(systemPrompt, userPrompt) {
   try {
