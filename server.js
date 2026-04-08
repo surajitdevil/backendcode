@@ -66,30 +66,46 @@ async function callLLM(systemPrompt, userPrompt) {
   throw err;
 }
 }
+
 function buildDepartmentPrompt(roleName, roleInstruction, task, previousOutputs) {
   return `
-You are the ${roleName} inside ORCHEGENTRA AI, a premium enterprise AI company OS.
+You are ${roleName} inside ORCHEGENTRA AI — a high-performance multi-agent company OS.
 
-Your role:
+Your responsibility:
 ${roleInstruction}
 
-User task:
+USER TASK:
 Title: ${task.title}
 Description: ${task.description}
 
-Previous department outputs:
+PREVIOUS AGENT OUTPUTS:
 ${JSON.stringify(previousOutputs, null, 2)}
 
-Rules:
-1. Be specific to the user's exact task.
-2. Do not give generic advice.
-3. Build on previous agent outputs.
-4. Keep output practical, structured, and implementation-oriented.
-5. If task is about app, SaaS, AI tools, agentic systems, or automation, tailor deeply to that.
-6. Return plain text only.
+INSTRUCTIONS:
+- Think like a real senior professional in your role.
+- Build on previous agents (do NOT repeat).
+- Be specific, actionable, and implementation-focused.
+- Avoid generic advice.
+
+OUTPUT FORMAT (STRICT):
+Return ONLY in this structure:
+
+Objective:
+- What you are solving
+
+Key Decisions:
+- Important decisions taken
+
+Execution Plan:
+- Step-by-step execution
+
+Risks:
+- Possible issues
+
+Deliverables:
+- What will be produced
 `.trim();
 }
-
 const DEPARTMENTS = [
   {
     key: "chairman",
@@ -202,29 +218,34 @@ Summarize exactly what should be built, in what order, and how it should be laun
 `
   }
 ];
-
 async function runDepartmentAgents(task) {
   const outputs = {};
 
   for (const dept of DEPARTMENTS) {
-    const systemPrompt = buildDepartmentPrompt(
-      dept.label,
-      dept.instruction,
-      task,
-      outputs
-    );
+    try {
+      const systemPrompt = buildDepartmentPrompt(
+        dept.label,
+        dept.instruction,
+        task,
+        outputs
+      );
 
-    const userPrompt = `Generate the ${dept.label} output for this task.`;
+      const result = await callLLM(systemPrompt, "");
 
-    const result = await callLLM(systemPrompt, userPrompt);
-    outputs[dept.key] = result;
+      outputs[dept.key] = result;
+
+      console.log(`✅ ${dept.label} completed`);
+    } catch (err) {
+      console.error(`❌ ${dept.label} failed`, err.message);
+
+      outputs[dept.key] = `ERROR: ${err.message}`;
+    }
   }
 
   return outputs;
 }
-
 function formatLegacyOutput(structured) {
-  const orderedKeys = [
+  const order = [
     "chairman",
     "cto",
     "cmo",
@@ -240,13 +261,14 @@ function formatLegacyOutput(structured) {
     "final_summary"
   ];
 
-  return orderedKeys
-    .map((key) => {
-      const title = key.replace(/_/g, " ").toUpperCase();
-      return `[${title}]\n${structured[key] || ""}`;
+  return order
+    .map(key => {
+      if (!structured[key]) return "";
+      return `\n\n=== ${key.toUpperCase()} ===\n${structured[key]}`;
     })
-    .join("\n\n");
+    .join("");
 }
+
 
 app.get("/api/health", (_req, res) => {
   res.json({
