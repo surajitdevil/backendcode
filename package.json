@@ -2,21 +2,19 @@
   "name": "orchegentra-backend",
   "version": "1.0.0",
   "main": "server.js",
-
   "engines": {
-    "node": "20.x"
+    "node": "18.x"
   },
-
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
-    "express-rate-limit": "^6.0.0",
-    "node-fetch": "^2.6.7",
-    "@supabase/supabase-js": "^2.0.0",
-    "dotenv": "^16.0.0"
+    "node-fetch": "^2.6.7"
   }
 }
